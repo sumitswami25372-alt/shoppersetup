@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+import os
+import warnings
 from pathlib import Path
 
 import joblib
@@ -11,6 +13,12 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
+from google import genai
+from google.genai import types
+
+# Suppress sklearn unpickling and feature name warnings
+warnings.filterwarnings("ignore")
+
 
 
 st.set_page_config(
@@ -190,15 +198,31 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_transactions(csv_bytes: bytes | None) -> pd.DataFrame:
-    if csv_bytes is None:
-        return generate_sample_transactions()
+    if csv_bytes is not None:
+        df = normalize_columns(read_uploaded_csv(csv_bytes))
+        missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+        if missing:
+            st.error("Your CSV is missing required columns: " + ", ".join(missing))
+            st.stop()
+        return df
 
-    df = normalize_columns(read_uploaded_csv(csv_bytes))
-    missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-    if missing:
-        st.error("Your CSV is missing required columns: " + ", ".join(missing))
-        st.stop()
-    return df
+    # Search for local dataset files on disk
+    for path in [
+        Path("data/data/online_retail.csv"),
+        Path("data/OnlineRetail.csv"),
+        Path("data/online_retail.csv"),
+        Path("online_retail.csv"),
+        Path("OnlineRetail.csv"),
+    ]:
+        if path.exists():
+            try:
+                df = pd.read_csv(path, encoding="latin1")
+                return normalize_columns(df)
+            except Exception:
+                pass
+
+    return generate_sample_transactions()
+
 
 
 def clean_transactions(df: pd.DataFrame) -> pd.DataFrame:
@@ -253,7 +277,12 @@ def label_segments(clustered_rfm: pd.DataFrame) -> pd.Series:
     profiles["Score"] = profiles["RecencyRank"] + profiles["FrequencyRank"] + profiles["MonetaryRank"]
     label_order = ["High-Value", "Regular", "Occasional", "At-Risk", "Needs Attention", "New Buyer"]
     ordered_clusters = profiles.sort_values("Score").index.tolist()
-    label_map = {cluster: label_order[index] for index, cluster in enumerate(ordered_clusters)}
+    label_map = {}
+    for index, cluster in enumerate(ordered_clusters):
+        if index < len(label_order):
+            label_map[cluster] = label_order[index]
+        else:
+            label_map[cluster] = f"Cluster {cluster}"
     return clustered_rfm["Cluster"].map(label_map)
 
 
@@ -289,15 +318,20 @@ def evaluate_clusters(rfm: pd.DataFrame, max_k: int = 8) -> pd.DataFrame:
 
 
 def build_similarity(cleaned: pd.DataFrame) -> pd.DataFrame:
-    product_matrix = cleaned.pivot_table(
+    # Filter to top 2000 products by volume to save memory on large datasets (Streamlit Cloud safe)
+    top_products = cleaned["Description"].value_counts().head(2000).index
+    filtered_cleaned = cleaned[cleaned["Description"].isin(top_products)]
+    
+    product_matrix = filtered_cleaned.pivot_table(
         index="CustomerID",
         columns="Description",
         values="Quantity",
         aggfunc="sum",
         fill_value=0,
-    )
+    ).astype("float32") # Use float32 to save memory
+    
     similarity = cosine_similarity(product_matrix.T)
-    return pd.DataFrame(similarity, index=product_matrix.columns, columns=product_matrix.columns)
+    return pd.DataFrame(similarity, index=product_matrix.columns, columns=product_matrix.columns, dtype="float32")
 
 
 def load_saved_models():
@@ -333,8 +367,10 @@ def predict_segment(recency, frequency, monetary, scaler, model, clustered_rfm):
     input_df = pd.DataFrame([{"Recency": recency, "Frequency": frequency, "Monetary": monetary}])
     scaled_input = scaler.transform(transform_rfm(input_df))
     cluster = int(model.predict(scaled_input)[0])
-    segment = clustered_rfm.loc[clustered_rfm["Cluster"] == cluster, "Segment"].mode().iloc[0]
+    segment_modes = clustered_rfm.loc[clustered_rfm["Cluster"] == cluster, "Segment"].mode()
+    segment = segment_modes.iloc[0] if not segment_modes.empty else "Regular"
     return cluster, segment
+
 
 
 def recommend_products(product_name: str, similarity_df: pd.DataFrame, top_n: int):
@@ -380,20 +416,275 @@ def build_customer_view(cleaned: pd.DataFrame, clustered_rfm: pd.DataFrame) -> p
     return clustered_rfm.join(last_purchase, on="CustomerID").join(country, on="CustomerID")
 
 
-@st.cache_data(show_spinner="Preparing data and ML models...")
-def prepare_data(csv_bytes: bytes | None, cluster_count: int):
+@st.cache_data(show_spinner="Loading and cleaning transactions data...")
+def load_clean_data(csv_bytes: bytes | None) -> tuple[pd.DataFrame, pd.DataFrame]:
     raw = load_transactions(csv_bytes)
     cleaned = clean_transactions(raw)
     if cleaned.empty or cleaned["CustomerID"].nunique() < 2:
         st.error("Not enough valid customer transactions after cleaning.")
         st.stop()
+    return raw, cleaned
 
-    rfm = build_rfm(cleaned)
-    clustered_rfm, scaler, model, _ = fit_kmeans(rfm, cluster_count)
-    similarity_df = build_similarity(cleaned)
+
+@st.cache_data(show_spinner="Building product recommendation matrix...")
+def get_similarity_matrix(cleaned_df: pd.DataFrame, use_saved: bool = True) -> pd.DataFrame:
+    if use_saved and MODEL_PATHS["similarity"].exists():
+        try:
+            similarity_df = joblib.load(MODEL_PATHS["similarity"])
+            return similarity_df
+        except Exception:
+            pass
+    return build_similarity(cleaned_df)
+
+
+@st.cache_resource(show_spinner="Clustering customers with K-Means...")
+def get_rfm_clustering(cleaned_df: pd.DataFrame, cluster_count: int, use_saved: bool = True):
+    rfm = build_rfm(cleaned_df)
+    if use_saved and MODEL_PATHS["kmeans"].exists() and MODEL_PATHS["scaler"].exists():
+        try:
+            model = joblib.load(MODEL_PATHS["kmeans"])
+            scaler = joblib.load(MODEL_PATHS["scaler"])
+            if hasattr(model, "n_clusters") and model.n_clusters == cluster_count:
+                x_scaled = scaler.transform(transform_rfm(rfm))
+                clustered = rfm.copy()
+                clustered["Cluster"] = model.predict(x_scaled)
+                clustered["Segment"] = label_segments(clustered)
+                evaluation = evaluate_clusters(rfm)
+                customer_view = build_customer_view(cleaned_df, clustered)
+                return rfm, clustered, customer_view, scaler, model, evaluation
+        except Exception:
+            pass
+
+    clustered, scaler, model, _ = fit_kmeans(rfm, cluster_count)
     evaluation = evaluate_clusters(rfm)
-    customer_view = build_customer_view(cleaned, clustered_rfm)
-    return raw, cleaned, rfm, clustered_rfm, customer_view, scaler, model, similarity_df, evaluation
+    customer_view = build_customer_view(cleaned_df, clustered)
+    return rfm, clustered, customer_view, scaler, model, evaluation
+
+
+
+def get_store_overview_metrics() -> str:
+    """Returns high-level business metrics including total revenue, customer count, product count, and transaction count."""
+    cleaned = st.session_state.get("cleaned_df")
+    if cleaned is None:
+        return "Error: Cleaned dataset is not available."
+    current_role = st.session_state.get("user_role", "Sales Staff")
+    if current_role == "Sales Staff":
+        return "Access Denied: The 'Sales Staff' role is not authorized to view store financial totals."
+    
+    total_rev = cleaned["TotalAmount"].sum()
+    customers = cleaned["CustomerID"].nunique()
+    products = cleaned["Description"].nunique()
+    transactions = cleaned["InvoiceNo"].nunique()
+    top_countries = cleaned["Country"].value_counts().head(3).to_dict()
+    
+    return (
+        f"Store Metrics Overview:\n"
+        f"- Total Revenue: ${total_rev:,.2f}\n"
+        f"- Unique Customers: {customers:,}\n"
+        f"- Unique Products: {products:,}\n"
+        f"- Total Transactions: {transactions:,}\n"
+        f"- Top Countries: {', '.join([f'{k} ({v} orders)' for k, v in top_countries.items()])}"
+    )
+
+
+def get_customer_profile(customer_id: str) -> str:
+    """Retrieves the purchasing profile, segment, and RFM values for a given CustomerID.
+
+    Args:
+        customer_id: The ID of the customer (e.g., '17850').
+    """
+    customer_view = st.session_state.get("customer_view")
+    if customer_view is None:
+        return "Error: Customer segments data is not available."
+    customer_id = str(customer_id).strip()
+    if not customer_id.isdigit():
+        return "Error: Customer ID must be a numeric string."
+        
+    cust_data = customer_view[customer_view["CustomerID"] == customer_id]
+    if cust_data.empty:
+        return f"No customer found with ID: {customer_id}"
+        
+    row = cust_data.iloc[0]
+    segment = row["Segment"]
+    rec = row["Recency"]
+    freq = row["Frequency"]
+    mon = row["Monetary"]
+    country = row["Country"]
+    
+    current_role = st.session_state.get("user_role", "Sales Staff")
+    if current_role == "Sales Staff":
+        mon_display = "[REDACTED - Requires Analyst/Admin role]"
+    else:
+        mon_display = f"${mon:,.2f}"
+        
+    cust_id_display = f"***{customer_id[-2:]}" if current_role == "Business Analyst" else customer_id
+        
+    return (
+        f"Customer Profile (ID: {cust_id_display}):\n"
+        f"- Segment: {segment}\n"
+        f"- Country: {country}\n"
+        f"- Recency (days since last purchase): {rec}\n"
+        f"- Frequency (number of orders): {freq}\n"
+        f"- Monetary Spent: {mon_display}\n"
+        f"- Actionable Strategy: {segment_strategy(segment)}"
+    )
+
+
+def get_segment_info(segment_name: str) -> str:
+    """Returns average RFM values and marketing recommendations for a given customer segment.
+
+    Args:
+        segment_name: The name or keyword of the customer segment.
+    """
+    clustered_rfm = st.session_state.get("clustered_rfm")
+    if clustered_rfm is None:
+        return "Error: Customer clustering data is not available."
+    segment_name = segment_name.strip()
+    summary = summarize_segments(clustered_rfm)
+    seg_data = summary[summary["Segment"].str.lower() == segment_name.lower()]
+    if seg_data.empty:
+        valid_segments = ", ".join(summary["Segment"].tolist())
+        return f"Segment '{segment_name}' not found. Valid segments are: {valid_segments}"
+        
+    row = seg_data.iloc[0]
+    name = row["Segment"]
+    count = row["Customers"]
+    avg_rec = row["AvgRecency"]
+    avg_freq = row["AvgFrequency"]
+    avg_mon = row["AvgMonetary"]
+    
+    current_role = st.session_state.get("user_role", "Sales Staff")
+    if current_role == "Sales Staff":
+        mon_display = "[REDACTED - Requires Analyst/Admin role]"
+    else:
+        mon_display = f"${avg_mon:,.2f}"
+        
+    return (
+        f"Segment Info: {name}\n"
+        f"- Customer Count: {count:,} ({count / len(clustered_rfm) * 100:.1f}% of total customer base)\n"
+        f"- Average Recency: {avg_rec:.1f} days\n"
+        f"- Average Frequency: {avg_freq:.1f} orders\n"
+        f"- Average Monetary Spend: {mon_display}\n"
+        f"- Actionable Marketing Strategy: {segment_strategy(name)}"
+    )
+
+
+def get_similar_products(product_name: str) -> str:
+    """Recommends products similar to a given product keyword based on collaborative filtering.
+
+    Args:
+        product_name: The name or keyword of the product.
+    """
+    similarity_df = st.session_state.get("similarity_df")
+    if similarity_df is None:
+        return "Error: Product similarity database is not available."
+    product_name = str(product_name).strip()
+    if len(product_name) < 3:
+        return "Error: Product search query must be at least 3 characters long."
+        
+    matched_product, recommendations = recommend_products(product_name, similarity_df, top_n=5)
+    if recommendations.empty:
+        return f"Could not find any product matching '{product_name}' in similarity database."
+        
+    result = f"Top recommendations for '{matched_product}':\n"
+    for rank, (prod, score) in enumerate(recommendations.items(), start=1):
+        result += f"{rank}. {prod} (similarity score: {score:.3f})\n"
+    return result
+
+
+def show_ai_assistant(cleaned: pd.DataFrame, clustered_rfm: pd.DataFrame, customer_view: pd.DataFrame, similarity_df: pd.DataFrame) -> None:
+    st.subheader("AI Business Assistant")
+    st.write("Ask questions about customer segments, products, similar items, store metrics, and marketing strategies.")
+    
+    # 1. Secure API Key handling
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        try:
+            api_key = st.secrets.get("GEMINI_API_KEY")
+        except Exception:
+            pass
+            
+    if not api_key:
+        api_key = st.sidebar.text_input("Enter Gemini API Key", type="password", help="Providing your API key enables the AI chatbot.")
+        if not api_key:
+            st.info("Please provide a Gemini API Key in the sidebar to activate the AI Business Assistant chatbot.")
+            return
+
+    # 2. Simulated Role-Based Security controls
+    role = st.sidebar.selectbox("Your Role (Security Demo)", ["Sales Staff", "Business Analyst", "Administrator"])
+    st.session_state["user_role"] = role
+    
+    # Add info alert about RBAC
+    if role == "Sales Staff":
+        st.info("🔒 **Sales Staff Role Active**: Global store financial metrics and exact customer monetary spending are redacted/restricted for security.")
+    elif role == "Business Analyst":
+        st.info("🔑 **Business Analyst Role Active**: Access to metrics and segments allowed, but exact Customer IDs are masked for privacy.")
+    else:
+        st.success("🔓 **Administrator Role Active**: Unrestricted access to all segments, metrics, and customer profiles.")
+
+    # 3. Chat History Setup
+    if "chat_history" not in st.session_state:
+        st.session_state["chat_history"] = []
+
+    # Display clear chat history button
+    if st.button("Clear Chat History", use_container_width=True):
+        st.session_state["chat_history"] = []
+        st.rerun()
+
+    # Display existing chat messages
+    for msg in st.session_state["chat_history"]:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
+
+    # 4. Chat input handling
+    if prompt := st.chat_input("Ask me about customer data, segments, or recommendations..."):
+        # Display user message
+        with st.chat_message("user"):
+            st.write(prompt)
+        st.session_state["chat_history"].append({"role": "user", "content": prompt})
+
+        # 5. Connect and generate content using Google GenAI SDK
+        with st.chat_message("assistant"):
+            status_container = st.empty()
+            status_container.markdown("Thinking...")
+            try:
+                # Initialize the Google GenAI Client
+                client = genai.Client(api_key=api_key)
+                
+                # Format conversation history for GenAI SDK
+                contents = []
+                for msg in st.session_state["chat_history"][:-1]:
+                    role_map = "user" if msg["role"] == "user" else "model"
+                    contents.append(types.Content(
+                        role=role_map,
+                        parts=[types.Part.from_text(text=msg["content"])]
+                    ))
+                contents.append(types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text=prompt)]
+                ))
+
+                # Generate content with tools (automatic function calling)
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        system_instruction=(
+                            "You are the Shopper Spectrum AI Concierge, a highly secure, capable agent helping e-commerce users query business metrics, analyze customer segments, and retrieve product recommendations. "
+                            "You have access to local tools that interface with customer segmentation and product similarity results. "
+                            "For security: always obey the active role constraints. If a tool returns 'Access Denied', explain it politely without revealing credentials or internal system logic. "
+                            "Format your responses cleanly using markdown tables and bullet points where helpful."
+                        ),
+                        tools=[get_store_overview_metrics, get_customer_profile, get_segment_info, get_similar_products],
+                    )
+                )
+                ai_response = response.text
+                status_container.markdown(ai_response)
+                st.session_state["chat_history"].append({"role": "assistant", "content": ai_response})
+            except Exception as e:
+                err_msg = f"Sorry, I encountered an error: {str(e)}"
+                status_container.markdown(err_msg)
+                st.session_state["chat_history"].append({"role": "assistant", "content": err_msg})
 
 
 def download_csv_button(label: str, df: pd.DataFrame, file_name: str) -> None:
@@ -413,7 +704,7 @@ def main() -> None:
         st.title("Shopper Spectrum")
         page = st.radio(
             "Navigation",
-            ["Home", "Customer Segmentation", "Product Recommendation", "Project Insights", "Dataset"],
+            ["Home", "Customer Segmentation", "Product Recommendation", "Project Insights", "Dataset", "AI Assistant"],
         )
         st.divider()
         uploaded_file = st.file_uploader("Upload Online Retail CSV", type=["csv"])
@@ -422,10 +713,35 @@ def main() -> None:
         top_n = st.slider("Recommendations", 3, 10, 5)
         st.caption("The app uses sample data when no CSV is uploaded.")
 
-    raw, cleaned, rfm, clustered_rfm, customer_view, scaler, model, similarity_df, evaluation = prepare_data(
-        csv_bytes,
+    # Load and clean transactions (cached on file bytes)
+    raw, cleaned = load_clean_data(csv_bytes)
+
+    # Determine if we can use saved models
+    use_saved = (csv_bytes is None)
+
+    # Load/Build similarity matrix (cached on cleaned data)
+    similarity_df = get_similarity_matrix(cleaned, use_saved=use_saved)
+
+    # Load/Run K-Means clustering (cached on cleaned data and cluster count)
+    rfm, clustered_rfm, customer_view, scaler, model, evaluation = get_rfm_clustering(
+        cleaned,
         cluster_count,
+        use_saved=use_saved
     )
+
+    # Store in session state for top-level tools to access
+    st.session_state["cleaned_df"] = cleaned
+    st.session_state["clustered_rfm"] = clustered_rfm
+    st.session_state["customer_view"] = customer_view
+    st.session_state["similarity_df"] = similarity_df
+
+    # Auto-save customer segments for external systems (e.g. MCP Server)
+    try:
+        Path("outputs").mkdir(exist_ok=True)
+        customer_view.to_csv("outputs/customer_segments.csv", index=False)
+    except Exception:
+        pass
+
 
     st.markdown(
         """
@@ -498,8 +814,11 @@ def main() -> None:
             segment_options = sorted(customer_view["Segment"].dropna().unique())
             selected_segments = st.multiselect("Filter segments", segment_options, default=segment_options)
             filtered = customer_view[customer_view["Segment"].isin(selected_segments)]
-            st.scatter_chart(filtered, x="Frequency", y="Monetary", color="Segment", size="Recency")
-            st.dataframe(filtered.head(300), use_container_width=True, hide_index=True)
+            if filtered.empty:
+                st.warning("Please select at least one segment to display the map.")
+            else:
+                st.scatter_chart(filtered, x="Frequency", y="Monetary", color="Segment", size="Recency")
+                st.dataframe(filtered.head(300), use_container_width=True, hide_index=True)
 
     elif page == "Product Recommendation":
         st.subheader("Product Recommendation Engine")
@@ -571,6 +890,9 @@ def main() -> None:
         with eda_right:
             st.write("Revenue by country")
             st.bar_chart(cleaned.groupby("Country")["TotalAmount"].sum().sort_values(ascending=False).head(12))
+
+    elif page == "AI Assistant":
+        show_ai_assistant(cleaned, clustered_rfm, customer_view, similarity_df)
 
 
 if __name__ == "__main__":
