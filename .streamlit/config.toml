@@ -6,13 +6,6 @@ secondaryBackgroundColor = "#1e293b"
 textColor = "#e2e8f0"
 font = "sans serif"
 
-[server]
-headless = true
-enableCORS = true
-enableXsrfProtection = true
-port = 8502
-maxUploadSize = 200
-
 [client]
 toolbarMode = "minimal"
-showErrorDetails = false
+showErrorDetails = true

@@ -58,9 +58,9 @@ Deploy this app yourself on [Streamlit Community Cloud](https://share.streamlit.
 shopper-spectrum/
 ├── app.py                   # Main Streamlit application
 ├── mcp_server.py            # MCP server for agent integrations
-├── requirements.txt         # Python dependencies
+├── requirements.txt         # Streamlit Cloud app dependencies
+├── requirements-mcp.txt     # Optional local MCP server dependencies
 ├── runtime.txt              # Python version pin (deployment)
-├── packages.txt             # System packages (deployment platforms)
 ├── LICENSE                  # MIT License
 ├── README.md                # This file
 ├── .gitignore               # Git ignore rules
@@ -121,6 +121,8 @@ streamlit run app.py
 5. Click **Deploy**. Done!
 
 > The app includes built-in demo data so it works immediately — no dataset upload needed.
+> Streamlit Cloud uses `requirements.txt` for Python packages and `runtime.txt`
+> for Python 3.11. No `packages.txt` file is needed for this app.
 
 ### Render / Railway
 
@@ -158,6 +160,12 @@ python mcp_server.py
 
 # Or using fastmcp
 fastmcp run mcp_server.py
+```
+
+If MCP dependencies are not installed yet:
+
+```bash
+pip install -r requirements-mcp.txt
 ```
 
 Exposed tools:

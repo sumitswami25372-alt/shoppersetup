@@ -113,6 +113,13 @@ SEGMENT_STRATEGIES: dict[str, str] = {
 
 ROLES: list[str] = ["Sales Staff", "Business Analyst", "Administrator"]
 
+TRUTHY_ENV_VALUES: set[str] = {"1", "true", "yes", "on"}
+
+
+def _env_enabled(name: str) -> bool:
+    """Return True when an environment flag is explicitly enabled."""
+    return os.environ.get(name, "").strip().lower() in TRUTHY_ENV_VALUES
+
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # CSS — Premium dark-gradient glassmorphism theme
@@ -120,8 +127,7 @@ ROLES: list[str] = ["Sales Staff", "Business Analyst", "Administrator"]
 
 def add_css() -> None:
     """Inject premium custom CSS with Inter font, gradient hero, and card styles."""
-    st.html(
-        """
+    css = """
         <style>
         /* ── Global typography ── */
         html, body, [class*="css"] { font-family: sans-serif !important; }
@@ -241,8 +247,11 @@ def add_css() -> None:
         section[data-testid="stSidebar"] .stRadio label { color: #cbd5e1 !important; }
         section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span { color: #94a3b8; }
         </style>
-        """,
-    )
+        """
+    if hasattr(st, "html"):
+        st.html(css)
+    else:
+        st.markdown(css, unsafe_allow_html=True)
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -336,6 +345,9 @@ def load_transactions(csv_bytes: Optional[bytes]) -> pd.DataFrame:
             st.error(f"CSV is missing required columns: {', '.join(missing)}")
             st.stop()
         return df
+
+    if not _env_enabled("SHOPPER_USE_LOCAL_DATA"):
+        return generate_sample_transactions()
 
     # Search for a local dataset (common path patterns)
     for path in [
@@ -1282,7 +1294,7 @@ def main() -> None:
 
     # ── Data loading (all cached) ──────────────────────────────────────────
     _, cleaned = load_clean_data(csv_bytes)
-    use_saved: bool = csv_bytes is None
+    use_saved: bool = csv_bytes is None and _env_enabled("SHOPPER_USE_SAVED_MODELS")
     similarity_df: pd.DataFrame = get_similarity_matrix(cleaned, use_saved=use_saved)
     rfm, clustered_rfm, customer_view, scaler, model, evaluation = get_rfm_clustering(
         cleaned, cluster_count, use_saved=use_saved
@@ -1351,4 +1363,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        st.error("The app could not finish starting. See details below.")
+        st.exception(exc)

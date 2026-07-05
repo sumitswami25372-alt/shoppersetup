@@ -1,17 +1,47 @@
 """Shopper Spectrum MCP Server — exposes customer and product data tools via the
 Model Context Protocol for use with Claude Desktop, Cursor, and other AI agents.
 """
+from __future__ import annotations
+
 import warnings
-import pandas as pd
-import joblib
 from pathlib import Path
-from mcp.server.fastmcp import FastMCP
+from typing import Any, Callable, TypeVar
+
+import joblib
+import pandas as pd
+
+try:
+    from mcp.server.fastmcp import FastMCP
+except ModuleNotFoundError:
+    FastMCP = None  # type: ignore[assignment]
 
 # Suppress sklearn unpickling warnings
 warnings.filterwarnings("ignore")
 
-# Initialize FastMCP Server
-mcp = FastMCP("Shopper Spectrum MCP Server")
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+class MissingMCPServer:
+    """Small fallback so this module imports without optional MCP dependencies."""
+
+    @staticmethod
+    def tool() -> Callable[[F], F]:
+        return lambda func: func
+
+    @staticmethod
+    def run() -> None:
+        raise SystemExit(
+            "MCP dependencies are not installed. Run "
+            "`pip install -r requirements-mcp.txt` to use mcp_server.py."
+        )
+
+
+# Initialize FastMCP Server when the optional dependency is available.
+mcp: Any = (
+    FastMCP("Shopper Spectrum MCP Server")
+    if FastMCP is not None
+    else MissingMCPServer()
+)
 
 # Paths to models & processed files
 SEGMENTS_PATH = Path("outputs/customer_segments.csv")
