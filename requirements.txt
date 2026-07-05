@@ -1,9 +1,7 @@
-streamlit
-pandas
-numpy
-matplotlib
-seaborn
-scikit-learn>=1.2.0
-joblib
-google-genai
-mcp
+﻿streamlit>=1.35.0
+pandas>=2.0.0
+numpy>=1.26.0
+scikit-learn>=1.4.0,<2.0.0
+joblib>=1.3.0
+google-genai>=1.0.0
+mcp>=1.0.0

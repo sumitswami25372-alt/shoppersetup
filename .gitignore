@@ -1,9 +1,57 @@
-# models/product_similarity.pkl is now tracked (compressed to 35.6MB)
-# models/product_similarity.pkl
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
 
-# ── Secrets & credentials (NEVER commit these) ─────────────────────────────
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Streamlit secrets (NEVER commit) ─────────────────────────────────────────
 .streamlit/secrets.toml
+
+# ── Environment variable files (NEVER commit) ─────────────────────────────────
 .env
 .env.*
 *.pem
 *.key
+
+# ── Trained models (large binary files — regenerated on startup) ──────────────
+models/kmeans_model.pkl
+models/rfm_scaler.pkl
+# models/product_similarity.pkl   ← uncomment to exclude if >100 MB
+
+# ── Generated outputs ─────────────────────────────────────────────────────────
+outputs/
+
+# ── Dataset (too large for git — provide via upload or local path) ─────────────
+data/data/online_retail.csv
+data/OnlineRetail.csv
+data/online_retail.csv
+*.csv
+
+# ── IDE / Editor ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS artifacts ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log

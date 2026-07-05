@@ -1,217 +1,211 @@
-# Shopper Spectrum: Customer Segmentation and Product Recommendations in E-Commerce
+# 🛒 Shopper Spectrum
 
-##  Project Overview
+> **AI-powered customer segmentation & product recommendation for modern e-commerce**
 
-Shopper Spectrum is an end-to-end Machine Learning and Data Analytics project that analyzes customer transaction data from an online retail business.
-
-The project performs:
-
-* Customer Segmentation using RFM Analysis and K-Means Clustering
-* Product Recommendation using Item-Based Collaborative Filtering
-* Exploratory Data Analysis (EDA)
-* Interactive Streamlit Dashboard
-* Secure AI Business Assistant Chatbot (Gemini-powered agent with data querying tools)
-* Standalone Model Context Protocol (MCP) Server for agent integrations
-
-The goal is to help businesses understand customer behavior, improve marketing strategies, and provide personalized product recommendations.
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
-## Objectives
+## Overview
 
-* Analyze customer purchasing behavior
-* Perform data preprocessing and feature engineering
-* Build customer segments using clustering techniques
-* Generate personalized product recommendations
-* Visualize business insights through interactive dashboards
-* Demonstrate Agentic AI workflows and security controls (Kaggle Capstone requirements)
+Shopper Spectrum is a production-ready, end-to-end Machine Learning and Data Analytics application that analyses customer transaction data from an online retail business.
 
----
-
-## Dataset Description
- Column      | Description                  |
- ----------- | ---------------------------- |
- InvoiceNo   | Transaction Number           |
- StockCode   | Product Code                 |
- Description | Product Name                 |
- Quantity    | Number of Products Purchased |
- InvoiceDate | Transaction Date             |
- UnitPrice   | Product Price                |
- CustomerID  | Unique Customer Identifier   |
- Country     | Customer Country             |
+**What it does:**
+- 🎯 **Customer Segmentation** — RFM Analysis + K-Means Clustering
+- 🛍️ **Product Recommendations** — Item-Based Collaborative Filtering (Cosine Similarity)
+- 📊 **Business Analytics** — Interactive KPI dashboard, EDA, and trend charts
+- 🤖 **AI Business Assistant** — Gemini-powered chatbot with automatic tool calling
+- 🔒 **Role-Based Access Control** — Sales Staff, Analyst, Administrator roles
+- 🔗 **MCP Server** — Standalone Model Context Protocol server for agent integrations
 
 ---
 
-## Technologies Used
+## Live Demo
 
-* Python
-* Pandas
-* NumPy
-* Scikit-Learn
-* Matplotlib
-* Seaborn
-* Streamlit
-* Joblib
-* Google GenAI SDK (google-genai)
-* Model Context Protocol (MCP) Python SDK (mcp)
+Deploy this app yourself on [Streamlit Community Cloud](https://share.streamlit.io/) — see deployment instructions below.
 
 ---
 
-## Project Workflow
+## Features
 
-### 1. Data Collection & Understanding
-* Dataset Exploration
-* Missing Value Analysis
-* Duplicate Record Detection
+### Customer Segments
+| Segment | Description |
+|---------|-------------|
+| 🏆 High-Value | Best customers — frequent, recent, high spend |
+| ✅ Regular | Reliable repeat customers |
+| 🛒 Occasional | Infrequent buyers with potential |
+| ⚠️ At-Risk | Previously active — now going quiet |
+| 👁️ Needs Attention | Low engagement across all RFM dimensions |
+| 🆕 New Buyer | Recently acquired customers |
 
-### 2. Data Preprocessing
-* Remove Missing Customer IDs
-* Remove Cancelled Invoices
-* Remove Invalid Quantities
-* Remove Invalid Prices
-
-### 3. Exploratory Data Analysis
-* Country-wise Transaction Analysis
-* Top Selling Products
-* Purchase Trends
-* Revenue Distribution
-* RFM Analysis
-
-### 4. Customer Segmentation
-* RFM Feature Engineering
-* Feature Scaling
-* Elbow Method & Silhouette Analysis
-* K-Means Clustering
-
-Customer Segments:
-* High-Value Customers
-* Regular Customers
-* Occasional Customers
-* At-Risk Customers
-* Needs Attention
-* New Buyer
-
-### 5. Product Recommendation System
-* Customer-Product Matrix Creation
-* Item-Based Collaborative Filtering using Cosine Similarity
-* Top Product Recommendations
-
-### 6. Streamlit Dashboard & AI Assistant
-Features:
-* Dataset Overview
-* EDA Visualizations
-* Customer Segmentation Analysis
-* Product Recommendation System
-* Business Insights Dashboard
-* AI Business Assistant Chatbot (Secure Gemini Agent with Live Data Tools)
+### AI Business Assistant Capabilities
+- Ask natural language questions about customers, products, and business metrics
+- **Automatic Function Calling**: directly queries live pandas DataFrames via 4 tools:
+  - `get_store_overview_metrics` — revenue, customers, transactions
+  - `get_customer_profile` — per-customer RFM + segment info
+  - `get_segment_info` — aggregate segment statistics
+  - `get_similar_products` — collaborative-filtering recommendations
+- **RBAC Security**: different data access per role — no raw credential exposure
 
 ---
 
 ## Project Structure
 
+```
 shopper-spectrum/
-├── app.py                  # Streamlit application entry point
-├── mcp_server.py           # Model Context Protocol (MCP) server
-├── requirements.txt        # Project dependencies
-├── README.md               # Project documentation
-├── data/
-│   └── data/
-│       └── online_retail.csv # Dataset (if present)
-├── models/
-│   ├── kmeans_model.pkl    # Pre-trained K-Means model
-│   ├── rfm_scaler.pkl      # Pre-trained scaler
-│   └── product_similarity.pkl # Pre-trained similarity matrix
-├── outputs/
-│   └── customer_segments.csv # Generated customer segments
-└── screenshots/
+├── app.py                   # Main Streamlit application
+├── mcp_server.py            # MCP server for agent integrations
+├── requirements.txt         # Python dependencies
+├── runtime.txt              # Python version pin (deployment)
+├── LICENSE                  # MIT License
+├── README.md                # This file
+├── .gitignore               # Git ignore rules
+├── .streamlit/
+│   ├── config.toml          # Streamlit theme & server config
+│   └── secrets.toml         # API keys (git-ignored — DO NOT COMMIT)
+├── models/                  # Saved ML models (auto-generated)
+│   ├── kmeans_model.pkl
+│   ├── rfm_scaler.pkl
+│   └── product_similarity.pkl
+├── outputs/                 # Generated segment exports (git-ignored)
+│   └── customer_segments.csv
+└── data/                    # Place your dataset here (git-ignored)
+    └── online_retail.csv
+```
 
 ---
 
-## AI Business Assistant & Model Context Protocol (MCP)
+## Quick Start (Local)
 
-This application includes advanced AI agent integrations designed for business intelligence, aligned with the **Kaggle AI Agents Capstone** criteria:
+```bash
+# 1. Clone the repository
+git clone https://github.com/yourusername/shopper-spectrum.git
+cd shopper-spectrum
 
-### 1. AI Business Assistant Chatbot (Streamlit Dashboard)
-An interactive concierge agent embedded in the dashboard powered by Google's `gemini-2.5-flash` model.
-- **Agent Capabilities:** Explains customer segments, provides actionable marketing strategies, retrieves product recommendations, and displays high-level business stats.
-- **Key Concept 1: Automatic Tool Calling:** Employs **Automatic Function Calling** to execute local Python functions (`get_store_overview_metrics`, `get_customer_profile`, `get_segment_info`, `get_similar_products`) directly querying live pandas DataFrames.
-- **Key Concept 2: Security Features (RBAC):** Restricts information based on the selected user role:
-  - *Sales Staff:* Restricted from accessing global financial metrics (total revenue) and exact customer monetary spending.
-  - *Business Analyst:* Can view metrics, but individual Customer IDs are masked/redacted for privacy.
-  - *Administrator:* Complete unrestricted access.
-  - *Input Sanitation:* Sanitizes product keywords and validates numeric customer IDs before execution to prevent execution errors or injection risks.
+# 2. Create and activate a virtual environment
+python -m venv .venv
+source .venv/bin/activate        # Linux/macOS
+.venv\Scripts\activate           # Windows
 
-### 2. Key Concept 3: Model Context Protocol (MCP) Server
-A standalone MCP server (`mcp_server.py`) built using the `fastmcp` SDK to expose Shopper Spectrum features to other agent environments (e.g. Claude Desktop or Cursor).
-- **Exposed Tools:**
-  - `get_customer_details(customer_id: str)`: Returns segment and RFM values.
-  - `get_product_recommendations(product_name: str, limit: int)`: Suggests similar products.
-  - `get_segment_metrics()`: Summarizes the distribution and characteristics of segments.
-- **To run the MCP server:**
-  ```bash
-  fastmcp run mcp_server.py
-  ```
-  Or connect it to your MCP host using `python mcp_server.py`.
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. (Optional) Add your Gemini API key
+echo 'GEMINI_API_KEY = "your_key_here"' > .streamlit/secrets.toml
+
+# 5. Run the app
+streamlit run app.py
+```
 
 ---
 
-## Deployability & Installation
+## Deployment
 
-This project has been fully optimized for deployment on **Streamlit Community Cloud** (under the 100MB file limit) by compressing large model weights and refining memory structures.
+### Streamlit Community Cloud (Recommended — Free)
 
-### Streamlit Community Cloud Deployment
-1. Fork or push this repository to GitHub.
-2. Log in to [Streamlit Community Cloud](https://share.streamlit.io/) and click **New App**.
-3. Select your repository, branch, and set `app.py` as the entrypoint file.
-4. Open **Advanced settings** -> **Secrets** and paste your Gemini API Key in TOML format:
+1. Push this repository to GitHub.
+2. Go to [share.streamlit.io](https://share.streamlit.io/) → **New App**.
+3. Select repository, branch `main`, file `app.py`.
+4. Click **Advanced settings** → **Secrets**, and add:
    ```toml
    GEMINI_API_KEY = "your_gemini_api_key_here"
    ```
-5. Click **Deploy**. The app will automatically build and run.
+5. Click **Deploy**. Done!
 
-### Local Installation & Setup
+> The app includes built-in demo data so it works immediately — no dataset upload needed.
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/shopper-spectrum.git
-   cd shopper-spectrum
-   ```
+### Render / Railway
 
-2. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+1. Set the build command: `pip install -r requirements.txt`
+2. Set the start command: `streamlit run app.py --server.port $PORT --server.headless true`
+3. Add `GEMINI_API_KEY` as an environment variable in the dashboard.
 
-3. Run Streamlit application:
-   ```bash
-   streamlit run app.py
-   ```
+### Hugging Face Spaces
 
+1. Create a new Space → **Streamlit** template.
+2. Upload all project files.
+3. Add `GEMINI_API_KEY` to the Space Secrets panel.
 
 ---
 
-## Machine Learning Models
+## API Key Security
 
-### Customer Segmentation
-Algorithm: K-Means Clustering  
-Evaluation: Elbow Method, Silhouette Score
+The app resolves the Gemini API key in priority order:
 
-### Recommendation System
-Algorithm: Item-Based Collaborative Filtering  
-Similarity Measure: Cosine Similarity
+1. `GEMINI_API_KEY` **environment variable** (production/CI)
+2. `GEMINI_API_KEY` in `.streamlit/secrets.toml` (local dev — git-ignored)
+3. Masked **sidebar text input** as a user-provided fallback
+
+The key is **never logged, stored, or transmitted** beyond Gemini's API.
 
 ---
 
-## Results
+## MCP Server
 
-* Successfully segmented customers into meaningful groups.
-* Identified High-Value and At-Risk customers.
-* Built a recommendation engine capable of suggesting similar products.
-* Generated actionable business insights for marketing and sales teams.
+A standalone [Model Context Protocol](https://modelcontextprotocol.io/) server is included for connecting Shopper Spectrum data to AI agent environments (e.g., Claude Desktop, Cursor).
+
+```bash
+# Run the MCP server
+python mcp_server.py
+
+# Or using fastmcp
+fastmcp run mcp_server.py
+```
+
+Exposed tools:
+- `get_customer_details(customer_id)` — segment + RFM values
+- `get_product_recommendations(product_name, limit)` — similar product suggestions
+- `get_segment_metrics()` — full segment distribution summary
+
+---
+
+## Dataset
+
+The app works with the [Online Retail dataset](https://archive.ics.uci.edu/dataset/352/online+retail) (UCI Machine Learning Repository).
+
+Place the CSV at `data/online_retail.csv` or upload it via the sidebar. If no file is provided, the app uses built-in synthetic demo data.
+
+**Required columns:**
+`InvoiceNo`, `StockCode`, `Description`, `Quantity`, `InvoiceDate`, `UnitPrice`, `CustomerID`, `Country`
+
+---
+
+## Machine Learning
+
+| Component | Algorithm |
+|-----------|-----------|
+| Feature Engineering | RFM (Recency, Frequency, Monetary) |
+| Preprocessing | Log-transform + StandardScaler |
+| Clustering | K-Means (configurable k=2–6) |
+| Evaluation | Elbow method + Silhouette score |
+| Recommendations | Item-based Cosine Similarity |
+
+---
+
+## Technology Stack
+
+| Layer | Technology |
+|-------|-----------|
+| App Framework | Streamlit ≥ 1.35 |
+| Data Processing | Pandas ≥ 2.0, NumPy ≥ 1.26 |
+| Machine Learning | Scikit-learn ≥ 1.4 |
+| AI / LLM | Google Gemini (`google-genai` SDK) |
+| Agent Protocol | MCP Python SDK |
+| Persistence | Joblib |
+| Language | Python 3.11 |
 
 ---
 
 ## Author
 
-Sumit Swami  
+**Sumit Swami**  
 Data Analytics & Machine Learning Project  
+[GitHub](https://github.com/sumitswami25372-alt) | [Streamlit Community](https://share.streamlit.io/)
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
