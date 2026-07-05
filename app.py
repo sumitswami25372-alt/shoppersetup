@@ -1,25 +1,31 @@
+"""Shopper Spectrum — Interactive e-commerce analytics dashboard.
+
+All business logic lives in pure, module-level functions so that static
+analysis tools (Pyrefly, Pyright, mypy) can resolve every name from its
+import without seeing orphaned code fragments.
+"""
 from __future__ import annotations
 
+# ── Standard library ────────────────────────────────────────────────────────────────────────
 import io
 import os
 import warnings
 from pathlib import Path
+from typing import Optional
 
+# ── Third-party ───────────────────────────────────────────────────────────────────────────
 import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
+from google import genai
+from google.genai import types
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
-from google import genai
-from google.genai import types
 
-# Suppress sklearn unpickling and feature name warnings
 warnings.filterwarnings("ignore")
-
-
 
 st.set_page_config(
     page_title="Shopper Spectrum",
@@ -592,23 +598,14 @@ def get_similar_products(product_name: str) -> str:
     return result
 
 
-def show_ai_assistant(cleaned: pd.DataFrame, clustered_rfm: pd.DataFrame, customer_view: pd.DataFrame, similarity_df: pd.DataFrame) -> None:
+def show_ai_assistant(cleaned: pd.DataFrame, clustered_rfm: pd.DataFrame, customer_view: pd.DataFrame, similarity_df: pd.DataFrame, api_key: str = "") -> None:
     st.subheader("AI Business Assistant")
     st.write("Ask questions about customer segments, products, similar items, store metrics, and marketing strategies.")
     
-    # 1. Secure API Key handling
-    api_key = os.environ.get("GEMINI_API_KEY")
+    # 1. Secure API Key handling — key is passed in from the persistent sidebar widget
     if not api_key:
-        try:
-            api_key = st.secrets.get("GEMINI_API_KEY")
-        except Exception:
-            pass
-            
-    if not api_key:
-        api_key = st.sidebar.text_input("Enter Gemini API Key", type="password", help="Providing your API key enables the AI chatbot.")
-        if not api_key:
-            st.info("Please provide a Gemini API Key in the sidebar to activate the AI Business Assistant chatbot.")
-            return
+        st.info("🔑 Please provide a **Gemini API Key** in the sidebar to activate the AI Business Assistant chatbot.")
+        return
 
     # 2. Simulated Role-Based Security controls
     role = st.sidebar.selectbox("Your Role (Security Demo)", ["Sales Staff", "Business Analyst", "Administrator"])
@@ -712,6 +709,41 @@ def main() -> None:
         cluster_count = st.slider("K-Means clusters", 2, 6, 4)
         top_n = st.slider("Recommendations", 3, 10, 5)
         st.caption("The app uses sample data when no CSV is uploaded.")
+
+        # Gemini API Key — always visible in sidebar so AI Assistant can activate
+        st.divider()
+        st.markdown("**🤖 AI Assistant Settings**")
+        # ── Secure API Key Resolution (priority: env var → secrets.toml → UI) ──
+        _key_from_env = os.environ.get("GEMINI_API_KEY", "").strip()
+        _key_from_secrets = ""
+        try:
+            _key_from_secrets = st.secrets.get("GEMINI_API_KEY", "").strip()
+        except Exception:
+            pass
+
+        if _key_from_env:
+            # Highest priority: server-side environment variable (production)
+            sidebar_api_key = _key_from_env
+            st.success("🔒 API Key loaded from environment variable.", icon="✅")
+        elif _key_from_secrets:
+            # Second priority: .streamlit/secrets.toml (local dev — git-ignored)
+            sidebar_api_key = _key_from_secrets
+            st.success("🔒 API Key loaded from secrets.toml.", icon="✅")
+        else:
+            # Fallback: masked password input in sidebar (key is never echoed)
+            _user_input = st.text_input(
+                "Gemini API Key",
+                type="password",
+                placeholder="AIza…  (paste your key)",
+                help=(
+                    "Your key is never stored or logged. "
+                    "For permanent setup, add it to .streamlit/secrets.toml "
+                    "or set the GEMINI_API_KEY environment variable."
+                ),
+            )
+            sidebar_api_key = _user_input.strip()
+            if not sidebar_api_key:
+                st.caption("🔑 Enter your key above to activate the AI Assistant.")
 
     # Load and clean transactions (cached on file bytes)
     raw, cleaned = load_clean_data(csv_bytes)
@@ -892,7 +924,7 @@ def main() -> None:
             st.bar_chart(cleaned.groupby("Country")["TotalAmount"].sum().sort_values(ascending=False).head(12))
 
     elif page == "AI Assistant":
-        show_ai_assistant(cleaned, clustered_rfm, customer_view, similarity_df)
+        show_ai_assistant(cleaned, clustered_rfm, customer_view, similarity_df, api_key=sidebar_api_key)
 
 
 if __name__ == "__main__":
