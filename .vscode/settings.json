@@ -1,0 +1,39 @@
+{
+  // ─── Python Language Server ───────────────────────────────────────────────
+  // Use Pylance (Microsoft). Disable Pyrefly completely.
+  "python.languageServer": "Pylance",
+  "python.analysis.typeCheckingMode": "basic",
+
+  // ─── Pyrefly — completely disabled ───────────────────────────────────────
+  "pyrefly.enable": false,
+  "pyrefly.disableLangServerFeatures": true,
+
+  // ─── Pylance analysis settings ────────────────────────────────────────────
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.autoSearchPaths": true,
+  "python.analysis.diagnosticMode": "workspace",
+  "python.analysis.useLibraryCodeForTypes": true,
+  "python.analysis.indexing": true,
+
+  // ─── Ignored paths (keep virtual/cache folders out of analysis) ──────────
+  "python.analysis.exclude": [
+    "**/__pycache__/**",
+    "**/.git/**",
+    "**/outputs/**",
+    "**/models/**",
+    "**/__pyrefly_virtual__/**"
+  ],
+
+  // ─── Editor extras ───────────────────────────────────────────────────────
+  "editor.formatOnSave": true,
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  },
+  "python.analysis.completeFunctionParens": true,
+
+  // ─── Suppress noisy linter rules that don't apply to Streamlit ───────────
+  "python.analysis.ignore": [
+    "**/__pyrefly_virtual__/**"
+  ]
+}
