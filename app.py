@@ -35,7 +35,7 @@ from sklearn.preprocessing import StandardScaler
 warnings.filterwarnings("ignore")
 
 # ── Page config must be first Streamlit call ──────────────────────────────────
-st.set_page_config(
+st.set_page_config(  # type: ignore[arg-type]
     page_title="Shopper Spectrum",
     page_icon="🛒",
     layout="wide",
@@ -319,7 +319,7 @@ def _read_uploaded_csv(csv_bytes: bytes) -> pd.DataFrame:
 def _normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Rename columns to match required schema (case- and whitespace-insensitive)."""
     normalized: dict[str, object] = {
-        str(col).strip().lower(): col for col in df.columns
+        col.strip().lower(): col for col in df.columns
     }
     rename_map: dict[object, str] = {}
     for required in REQUIRED_COLUMNS:
@@ -454,8 +454,8 @@ def evaluate_clusters(rfm: pd.DataFrame, max_k: int = 8) -> pd.DataFrame:
         labels = mdl.fit_predict(x_scaled)
         rows.append({
             "k": k,
-            "inertia": round(float(mdl.inertia_), 2),
-            "silhouette": round(float(silhouette_score(x_scaled, labels)), 4),
+            "inertia": round(mdl.inertia_, 2),
+            "silhouette": round(silhouette_score(x_scaled, labels), 4),
         })
     return pd.DataFrame(rows)
 
@@ -492,7 +492,7 @@ def recommend_products(
         matches = products[products.str.contains(product_name, case=False, regex=False)]
         if matches.empty:
             return None, pd.Series(dtype=float)
-        matched = str(matches.iloc[0])
+        matched = matches.iloc[0]
 
     recs = (
         similarity_df[matched]
@@ -567,7 +567,8 @@ def build_customer_view(
 ) -> pd.DataFrame:
     """Enrich RFM clusters with last-purchase date and country columns."""
     last_purchase = (
-        cleaned.groupby("CustomerID")["InvoiceDate"].max().dt.date.rename("LastPurchase")
+        pd.to_datetime(cleaned.groupby("CustomerID")["InvoiceDate"].max(), errors="coerce")
+        .dt.date.rename("LastPurchase")
     )
     country = (
         cleaned.groupby("CustomerID")["Country"]
@@ -607,7 +608,7 @@ def get_similarity_matrix(
     return build_similarity(cleaned_df)
 
 
-@st.cache_resource(show_spinner="⏳ Clustering customers with K-Means…")
+@st.cache_data(show_spinner="⏳ Clustering customers with K-Means…")
 def get_rfm_clustering(
     cleaned_df: pd.DataFrame, cluster_count: int, use_saved: bool = True
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, StandardScaler, KMeans, pd.DataFrame]:
@@ -649,9 +650,9 @@ def get_store_overview_metrics() -> str:
     if current_role == "Sales Staff":
         return "Access Denied: The 'Sales Staff' role is not authorised to view store financial totals."
     total_rev = float(cleaned["TotalAmount"].sum())
-    customers = int(cleaned["CustomerID"].nunique())
-    products = int(cleaned["Description"].nunique())
-    transactions = int(cleaned["InvoiceNo"].nunique())
+    customers = cleaned["CustomerID"].nunique()
+    products = cleaned["Description"].nunique()
+    transactions = cleaned["InvoiceNo"].nunique()
     top_countries: dict[str, int] = cleaned["Country"].value_counts().head(3).to_dict()
     return (
         f"Store Metrics Overview:\n"
@@ -672,18 +673,18 @@ def get_customer_profile(customer_id: str) -> str:
     customer_view: Optional[pd.DataFrame] = st.session_state.get("customer_view")
     if customer_view is None:
         return "Error: Customer segments data is not available."
-    customer_id = str(customer_id).strip()
+    customer_id = customer_id.strip()
     if not customer_id.isdigit():
         return "Error: Customer ID must be a numeric string."
     cust_data = customer_view[customer_view["CustomerID"] == customer_id]
     if cust_data.empty:
         return f"No customer found with ID: {customer_id}"
     row = cust_data.iloc[0]
-    segment = str(row["Segment"])
-    rec = float(row["Recency"])
-    freq = float(row["Frequency"])
-    mon = float(row["Monetary"])
-    country = str(row["Country"])
+    segment = row["Segment"]
+    rec = row["Recency"]
+    freq = row["Frequency"]
+    mon = row["Monetary"]
+    country = row["Country"]
     current_role: str = st.session_state.get("user_role", "Sales Staff")
     mon_display = (
         "[REDACTED — Requires Analyst/Admin role]"
@@ -718,11 +719,11 @@ def get_segment_info(segment_name: str) -> str:
         valid = ", ".join(summary["Segment"].tolist())
         return f"Segment '{segment_name}' not found. Valid segments: {valid}"
     row = seg_data.iloc[0]
-    name = str(row["Segment"])
-    count = int(row["Customers"])
-    avg_rec = float(row["AvgRecency"])
-    avg_freq = float(row["AvgFrequency"])
-    avg_mon = float(row["AvgMonetary"])
+    name = row["Segment"]
+    count = row["Customers"]
+    avg_rec = row["AvgRecency"]
+    avg_freq = row["AvgFrequency"]
+    avg_mon = row["AvgMonetary"]
     current_role: str = st.session_state.get("user_role", "Sales Staff")
     mon_display = (
         "[REDACTED — Requires Analyst/Admin role]"
@@ -748,7 +749,7 @@ def get_similar_products(product_name: str) -> str:
     similarity_df: Optional[pd.DataFrame] = st.session_state.get("similarity_df")
     if similarity_df is None:
         return "Error: Product similarity database is not available."
-    product_name = str(product_name).strip()
+    product_name = product_name.strip()
     if len(product_name) < 3:
         return "Error: Product search query must be at least 3 characters."
     matched, recs = recommend_products(product_name, similarity_df, top_n=5)
@@ -775,7 +776,7 @@ def _resolve_api_key() -> str:
     # Priority 2: .streamlit/secrets.toml (git-ignored; Streamlit Cloud secrets panel)
     key_secrets = ""
     try:
-        key_secrets = str(st.secrets.get("GEMINI_API_KEY", "")).strip()
+        key_secrets = st.secrets.get("GEMINI_API_KEY", "").strip()
     except Exception:
         pass
     if key_secrets:
@@ -906,7 +907,7 @@ def render_home(cleaned: pd.DataFrame, clustered_rfm: pd.DataFrame) -> None:
     with right:
         st.markdown("**📅 Monthly Revenue Trend**")
         monthly_sales = (
-            cleaned.assign(Month=cleaned["InvoiceDate"].dt.to_period("M").astype(str))
+            cleaned.assign(Month=pd.to_datetime(cleaned["InvoiceDate"], errors="coerce").dt.to_period("M").astype(str))
             .groupby("Month")["TotalAmount"]
             .sum()
             .reset_index()
@@ -935,17 +936,17 @@ def render_segmentation(
 
     with left:
         st.markdown('<div class="section-title">🔮 Predict Segment</div>', unsafe_allow_html=True)
-        recency: float = float(
-            st.number_input("Recency (days since last purchase)", min_value=0, value=30, step=1,
-                            help="How many days ago the customer last purchased.")
+        recency: float = st.number_input(
+            "Recency (days since last purchase)", min_value=0, value=30, step=1,
+            help="How many days ago the customer last purchased.",
         )
-        frequency: float = float(
-            st.number_input("Frequency (number of orders)", min_value=1, value=5, step=1,
-                            help="Total number of distinct orders.")
+        frequency: float = st.number_input(
+            "Frequency (number of orders)", min_value=1, value=5, step=1,
+            help="Total number of distinct orders.",
         )
-        monetary: float = float(
-            st.number_input("Monetary (total spend £)", min_value=1.0, value=500.0, step=50.0,
-                            help="Total lifetime spend in GBP.")
+        monetary: float = st.number_input(
+            "Monetary (total spend £)", min_value=1.0, value=500.0, step=50.0,
+            help="Total lifetime spend in GBP.",
         )
 
         if st.button("🔮 Predict Customer Segment", type="primary", use_container_width=True):
@@ -997,9 +998,8 @@ def render_recommendations(similarity_df: pd.DataFrame, top_n: int) -> None:
     col_search, col_btn = st.columns([0.8, 0.2])
     with col_search:
         products = sorted(similarity_df.index.tolist())
-        selected_product: str = str(
-            st.selectbox("Select a product", products, help="Pick from the catalog.")
-        )
+        _selected = st.selectbox("Select a product", products, help="Pick from the catalog.")
+        selected_product: str = _selected if _selected is not None else (products[0] if products else "")
         search_product: str = st.text_input(
             "Or type a keyword", value=selected_product,
             help="Partial match is supported.",
@@ -1229,7 +1229,7 @@ def render_ai_assistant(
                 )
                 response = client.models.generate_content(
                     model="gemini-2.5-flash",
-                    contents=contents,
+                    contents=contents,  # type: ignore[arg-type]
                     config=types.GenerateContentConfig(
                         system_instruction=(
                             "You are the Shopper Spectrum AI Concierge — a highly secure, "
@@ -1275,7 +1275,7 @@ def main() -> None:
     page, csv_bytes, cluster_count, top_n, api_key = build_sidebar()
 
     # ── Data loading (all cached) ──────────────────────────────────────────
-    _raw, cleaned = load_clean_data(csv_bytes)
+    _, cleaned = load_clean_data(csv_bytes)
     use_saved: bool = csv_bytes is None
     similarity_df: pd.DataFrame = get_similarity_matrix(cleaned, use_saved=use_saved)
     rfm, clustered_rfm, customer_view, scaler, model, evaluation = get_rfm_clustering(

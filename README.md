@@ -1,9 +1,10 @@
-# 🛒 Shopper Spectrum
+# 🛍️ Shopper Spectrum
 
 > **AI-powered customer segmentation & product recommendation for modern e-commerce**
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://share.streamlit.io/)
 [![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://python.org)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-≥1.4-orange.svg)](https://scikit-learn.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -59,21 +60,26 @@ shopper-spectrum/
 ├── mcp_server.py            # MCP server for agent integrations
 ├── requirements.txt         # Python dependencies
 ├── runtime.txt              # Python version pin (deployment)
+├── packages.txt             # System packages (deployment platforms)
 ├── LICENSE                  # MIT License
 ├── README.md                # This file
 ├── .gitignore               # Git ignore rules
 ├── .streamlit/
 │   ├── config.toml          # Streamlit theme & server config
 │   └── secrets.toml         # API keys (git-ignored — DO NOT COMMIT)
-├── models/                  # Saved ML models (auto-generated)
-│   ├── kmeans_model.pkl
-│   ├── rfm_scaler.pkl
-│   └── product_similarity.pkl
+├── models/                  # Saved ML models (auto-generated, git-ignored)
+│   ├── kmeans_model.pkl     # git-ignored — regenerated on startup
+│   ├── rfm_scaler.pkl       # git-ignored — regenerated on startup
+│   └── product_similarity.pkl  # git-ignored — 35 MB, rebuilt automatically
 ├── outputs/                 # Generated segment exports (git-ignored)
 │   └── customer_segments.csv
 └── data/                    # Place your dataset here (git-ignored)
     └── online_retail.csv
 ```
+
+> **Note:** All `.pkl` model files are listed in `.gitignore`. They are regenerated
+> automatically the first time the app runs. The `product_similarity.pkl` file is
+> ~35 MB and would exceed GitHub’s per-file limit — it must not be committed.
 
 ---
 
@@ -81,8 +87,8 @@ shopper-spectrum/
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/shopper-spectrum.git
-cd shopper-spectrum
+git clone https://github.com/sumitswami25372-alt/shoppersetup.git
+cd shoppersetup
 
 # 2. Create and activate a virtual environment
 python -m venv .venv

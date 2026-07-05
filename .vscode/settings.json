@@ -1,4 +1,8 @@
 {
+  "files.associations": {
+    "*.py": "python"
+  },
+  "python.defaultInterpreterPath": "C:\\Users\\SUMIT\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
   // ─── Python Language Server ───────────────────────────────────────────────
   // Use Pylance (Microsoft). Disable Pyrefly completely.
   "python.languageServer": "Pylance",

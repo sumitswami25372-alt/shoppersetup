@@ -27,7 +27,9 @@ ENV/
 # ── Trained models (large binary files — regenerated on startup) ──────────────
 models/kmeans_model.pkl
 models/rfm_scaler.pkl
-# models/product_similarity.pkl   ← uncomment to exclude if >100 MB
+# product_similarity.pkl is ~35 MB and exceeds GitHub's 25 MB per-file limit.
+# It is rebuilt automatically when the Streamlit app first runs.
+models/product_similarity.pkl
 
 # ── Generated outputs ─────────────────────────────────────────────────────────
 outputs/

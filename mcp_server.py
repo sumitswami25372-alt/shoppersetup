@@ -1,4 +1,6 @@
-import sys
+"""Shopper Spectrum MCP Server — exposes customer and product data tools via the
+Model Context Protocol for use with Claude Desktop, Cursor, and other AI agents.
+"""
 import warnings
 import pandas as pd
 import joblib
@@ -16,10 +18,10 @@ SEGMENTS_PATH = Path("outputs/customer_segments.csv")
 SIMILARITY_PATH = Path("models/product_similarity.pkl")
 
 
-def load_data():
-    """Helper function to load customer segments and similarity matrix if they exist."""
-    segments_df = None
-    similarity_df = None
+def load_data() -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
+    """Load customer segments CSV and product similarity matrix if they exist."""
+    segments_df: pd.DataFrame | None = None
+    similarity_df: pd.DataFrame | None = None
 
     if SEGMENTS_PATH.exists():
         try:
@@ -47,7 +49,7 @@ def get_customer_details(customer_id: str) -> str:
     if segments_df is None:
         return "Error: Customer segments data is not available. Please run the Streamlit dashboard first to generate outputs/customer_segments.csv."
 
-    customer_id = str(customer_id).strip()
+    customer_id = customer_id.strip()
     cust_row = segments_df[segments_df["CustomerID"].astype(str) == customer_id]
     if cust_row.empty:
         # Try casting to float representation if ID contains decimal
@@ -84,7 +86,7 @@ def get_product_recommendations(product_name: str, limit: int = 5) -> str:
     if similarity_df is None:
         return "Error: Product similarity model is not available. Please save models from the Streamlit app."
 
-    product_name = str(product_name).strip().upper()
+    product_name = product_name.strip().upper()
     if not product_name:
         return "Error: Please provide a valid product name query."
 
@@ -95,7 +97,7 @@ def get_product_recommendations(product_name: str, limit: int = 5) -> str:
         matches = products[products.str.contains(product_name, case=False, regex=False)]
         if matches.empty:
             return f"Product keyword '{product_name}' not found."
-        matched_product = matches.iloc[0]
+        matched_product = str(matches.iloc[0])
 
     limit = min(max(1, limit), 10)
     recommendations = (
