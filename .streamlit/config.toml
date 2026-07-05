@@ -8,9 +8,9 @@ font = "sans serif"
 
 [server]
 headless = true
-enableCORS = false
+enableCORS = true
 enableXsrfProtection = true
-port = 8501
+port = 8502
 maxUploadSize = 200
 
 [client]

@@ -1,31 +1,17 @@
-# ── Pyrefly configuration ─────────────────────────────────────────────────
-# This file tells Pyrefly to ONLY analyze real source files, never its own
-# virtual in-memory fragments (__pyrefly_virtual__).
-#
-# NOTE: The correct way to eliminate Pyrefly false positives is to switch to
-# Pylance as the language server in VS Code settings:
-#   "python.languageServer": "Pylance"
-#   "pyrefly.enable": false
-# Both of these have been set in .vscode/settings.json and the global
-# VS Code user settings.
-# ─────────────────────────────────────────────────────────────────────────
+# Pyrefly configuration
+# Scope analysis to real project source files only.
 
-[python]
-python_version = "3.13"
-
-[project]
-# Scope analysis to real project files only — never analyze notebooks or cache
-include = ["app.py", "mcp_server.py"]
-exclude = [
+python_version = "3.11"
+project_includes = ["app.py", "mcp_server.py"]
+project_excludes = [
     "**/__pycache__/**",
     "**/__pyrefly_virtual__/**",
     "**/outputs/**",
     "**/models/**",
     "**/.git/**",
+    "**/.venv/**",
     "**/*.ipynb",
 ]
 
 [errors]
-# These errors are spurious when Pyrefly analyzes code fragments out of context.
-# They are not real errors in the codebase.
 missing-import = "ignore"

@@ -38,7 +38,7 @@ def load_data() -> tuple[pd.DataFrame | None, pd.DataFrame | None]:
     return segments_df, similarity_df
 
 
-@mcp.tool
+@mcp.tool()
 def get_customer_details(customer_id: str) -> str:
     """Gets segment labels, recency, frequency, and monetary metrics for a specific customer ID from the Shopper Spectrum dataset.
 
@@ -74,7 +74,7 @@ def get_customer_details(customer_id: str) -> str:
     )
 
 
-@mcp.tool
+@mcp.tool()
 def get_product_recommendations(product_name: str, limit: int = 5) -> str:
     """Retrieves top product recommendations based on item similarity.
 
@@ -113,7 +113,7 @@ def get_product_recommendations(product_name: str, limit: int = 5) -> str:
     return result
 
 
-@mcp.tool
+@mcp.tool()
 def get_segment_metrics() -> str:
     """Returns a summary of all customer segments, customer counts, and averages."""
     segments_df, _ = load_data()

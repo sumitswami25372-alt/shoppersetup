@@ -18,7 +18,9 @@ import io
 import os
 import warnings
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
+
+os.environ.setdefault("LOKY_MAX_CPU_COUNT", "1")
 
 # ── Third-party ───────────────────────────────────────────────────────────────
 import joblib
@@ -118,13 +120,11 @@ ROLES: list[str] = ["Sales Staff", "Business Analyst", "Administrator"]
 
 def add_css() -> None:
     """Inject premium custom CSS with Inter font, gradient hero, and card styles."""
-    st.markdown(
+    st.html(
         """
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
         <style>
         /* ── Global typography ── */
-        html, body, [class*="css"] { font-family: 'Inter', sans-serif !important; }
+        html, body, [class*="css"] { font-family: sans-serif !important; }
 
         /* ── Layout ── */
         .main .block-container { padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1200px; }
@@ -242,7 +242,6 @@ def add_css() -> None:
         section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span { color: #94a3b8; }
         </style>
         """,
-        unsafe_allow_html=True,
     )
 
 
@@ -269,9 +268,8 @@ def generate_sample_transactions(rows: int = 4500, seed: int = 42) -> pd.DataFra
     start_date = np.datetime64("2022-01-01")
     dates = start_date + rng.integers(0, 730, size=rows).astype("timedelta64[D]")
     times = rng.integers(8 * 60, 22 * 60, size=rows).astype("timedelta64[m]")
-    picked = catalog.iloc[
-        rng.choice(len(catalog), size=rows, p=weights)
-    ].reset_index(drop=True)
+    picked_indices = cast(list[int], rng.choice(len(catalog), size=rows, p=weights).tolist())
+    picked = catalog.iloc[picked_indices].reset_index(drop=True)
 
     quantities: np.ndarray = rng.poisson(lam=3.2, size=rows) + 1
     bulk_mask: np.ndarray = rng.random(rows) < 0.08
@@ -396,10 +394,15 @@ def build_rfm(cleaned: pd.DataFrame) -> pd.DataFrame:
 
 def transform_rfm(rfm: pd.DataFrame) -> pd.DataFrame:
     """Log-transform RFM columns to reduce skewness before scaling."""
-    transformed = rfm[["Recency", "Frequency", "Monetary"]].copy()
-    for col in ("Recency", "Frequency", "Monetary"):
-        transformed[col] = np.log1p(transformed[col].clip(lower=0))
-    return transformed
+    clipped = rfm[["Recency", "Frequency", "Monetary"]].clip(lower=0)
+    return pd.DataFrame(
+        {
+            "Recency": np.log1p(clipped["Recency"]),
+            "Frequency": np.log1p(clipped["Frequency"]),
+            "Monetary": np.log1p(clipped["Monetary"]),
+        },
+        index=rfm.index,
+    )
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -430,11 +433,11 @@ def label_segments(clustered_rfm: pd.DataFrame) -> pd.Series:
 
 def fit_kmeans(
     rfm: pd.DataFrame, cluster_count: int
-) -> tuple[pd.DataFrame, StandardScaler, KMeans, np.ndarray]:
+) -> tuple[pd.DataFrame, StandardScaler, KMeans, Any]:
     """Fit K-Means on scaled RFM data; returns clustered DataFrame, scaler, model, scaled X."""
     cluster_count = max(2, min(cluster_count, len(rfm)))
     scaler = StandardScaler()
-    x_scaled: np.ndarray = scaler.fit_transform(transform_rfm(rfm))
+    x_scaled: Any = scaler.fit_transform(transform_rfm(rfm))
     model = KMeans(n_clusters=cluster_count, n_init=30, random_state=42)
     clustered = rfm.copy()
     clustered["Cluster"] = model.fit_predict(x_scaled)
@@ -447,11 +450,11 @@ def evaluate_clusters(rfm: pd.DataFrame, max_k: int = 8) -> pd.DataFrame:
     if len(rfm) < 3:
         return pd.DataFrame(columns=["k", "inertia", "silhouette"])
     scaler = StandardScaler()
-    x_scaled: np.ndarray = scaler.fit_transform(transform_rfm(rfm))
+    x_scaled: Any = scaler.fit_transform(transform_rfm(rfm))
     rows: list[dict[str, object]] = []
     for k in range(2, min(max_k, len(rfm) - 1) + 1):
         mdl = KMeans(n_clusters=k, n_init=20, random_state=42)
-        labels = mdl.fit_predict(x_scaled)
+        labels: Any = mdl.fit_predict(x_scaled)
         rows.append({
             "k": k,
             "inertia": round(mdl.inertia_, 2),
@@ -566,9 +569,11 @@ def build_customer_view(
     cleaned: pd.DataFrame, clustered_rfm: pd.DataFrame
 ) -> pd.DataFrame:
     """Enrich RFM clusters with last-purchase date and country columns."""
+    invoice_dates: Any = pd.to_datetime(
+        cleaned.groupby("CustomerID")["InvoiceDate"].max(), errors="coerce"
+    )
     last_purchase = (
-        pd.to_datetime(cleaned.groupby("CustomerID")["InvoiceDate"].max(), errors="coerce")
-        .dt.date.rename("LastPurchase")
+        invoice_dates.dt.date.rename("LastPurchase")
     )
     country = (
         cleaned.groupby("CustomerID")["Country"]
@@ -906,8 +911,9 @@ def render_home(cleaned: pd.DataFrame, clustered_rfm: pd.DataFrame) -> None:
 
     with right:
         st.markdown("**📅 Monthly Revenue Trend**")
+        invoice_months: Any = pd.to_datetime(cleaned["InvoiceDate"], errors="coerce")
         monthly_sales = (
-            cleaned.assign(Month=pd.to_datetime(cleaned["InvoiceDate"], errors="coerce").dt.to_period("M").astype(str))
+            cleaned.assign(Month=invoice_months.dt.to_period("M").astype(str))
             .groupby("Month")["TotalAmount"]
             .sum()
             .reset_index()
