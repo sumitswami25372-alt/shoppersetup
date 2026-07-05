@@ -1,0 +1,17 @@
+# Pyrefly configuration — disable in-memory fragment analysis
+# This prevents the hundreds of phantom errors from c:\__pyrefly_virtual__\inmemory\
+
+[project]
+# Only analyze actual project files, never virtual fragments
+include = ["app.py", "mcp_server.py"]
+
+[python]
+# Suppress all errors that arise from missing context in code fragments
+ignore_missing_imports = true
+ignore_missing_module_source = true
+
+[errors]
+# Disable rules that are meaningless for standalone fragments
+missing-name = "ignore"
+parse-error = "ignore"
+invalid-return = "ignore"

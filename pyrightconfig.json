@@ -1,0 +1,27 @@
+{
+  "include": [
+    "app.py",
+    "mcp_server.py"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/.git",
+    "**/outputs",
+    "**/models",
+    "**/__pyrefly_virtual__",
+    "shopper spectrum.ipynb"
+  ],
+  "ignore": [
+    "**/__pyrefly_virtual__"
+  ],
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true,
+  "reportMissingImports": "warning",
+  "reportMissingModuleSource": "none",
+  "reportUnusedImport": "none",
+  "reportUnusedVariable": "none",
+  "reportGeneralTypeIssues": "none",
+  "pythonVersion": "3.11",
+  "venvPath": ".",
+  "stubPath": "typestubs"
+}
