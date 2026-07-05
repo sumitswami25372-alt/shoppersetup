@@ -1,17 +1,31 @@
-# Pyrefly configuration — disable in-memory fragment analysis
-# This prevents the hundreds of phantom errors from c:\__pyrefly_virtual__\inmemory\
-
-[project]
-# Only analyze actual project files, never virtual fragments
-include = ["app.py", "mcp_server.py"]
+# ── Pyrefly configuration ─────────────────────────────────────────────────
+# This file tells Pyrefly to ONLY analyze real source files, never its own
+# virtual in-memory fragments (__pyrefly_virtual__).
+#
+# NOTE: The correct way to eliminate Pyrefly false positives is to switch to
+# Pylance as the language server in VS Code settings:
+#   "python.languageServer": "Pylance"
+#   "pyrefly.enable": false
+# Both of these have been set in .vscode/settings.json and the global
+# VS Code user settings.
+# ─────────────────────────────────────────────────────────────────────────
 
 [python]
-# Suppress all errors that arise from missing context in code fragments
-ignore_missing_imports = true
-ignore_missing_module_source = true
+python_version = "3.11"
+
+[project]
+# Scope analysis to real project files only — never analyze notebooks or cache
+include = ["app.py", "mcp_server.py"]
+exclude = [
+    "**/__pycache__/**",
+    "**/__pyrefly_virtual__/**",
+    "**/outputs/**",
+    "**/models/**",
+    "**/.git/**",
+    "**/*.ipynb",
+]
 
 [errors]
-# Disable rules that are meaningless for standalone fragments
-missing-name = "ignore"
-parse-error = "ignore"
-invalid-return = "ignore"
+# These errors are spurious when Pyrefly analyzes code fragments out of context.
+# They are not real errors in the codebase.
+missing-import = "ignore"
